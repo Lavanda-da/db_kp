@@ -1,6 +1,17 @@
 import psycopg2
 import psycopg2.extras
 from settings import DB_CONFIG
+import redis
+
+
+REDIS_TTL = 600
+
+
+r = redis.StrictRedis(
+    host='localhost',
+    port=6379,
+    decode_responses=True
+)
 
 
 def check_user(login) -> list[dict]:
@@ -50,6 +61,18 @@ def add_supplier(name, adress, login, hash):
 
 
 def get_user_id(login, password):
+    redis_login = login + 'user'
+    res = r.smembers(redis_login)
+    res_id = -1
+    checking = False
+    if res != {}:
+        for elem in res:
+            if 'id' in elem:
+                res_id = int(elem[2:])
+            elif password == elem:
+                checking = True
+    if checking:
+        return res_id
     query = """
                 SELECT id, hash_password
                 FROM users 
@@ -62,11 +85,26 @@ def get_user_id(login, password):
             if result == []:
                 return None
             if result[0]["hash_password"] == password:
+                r.sadd(redis_login, password)
+                r.sadd(redis_login, 'id' + str(result[0]["id"]))
+                r.expire(redis_login, REDIS_TTL)
                 return result[0]["id"]
             return None
 
 
 def get_supplier_id(login, password):
+    redis_login = login + 'supplier'
+    res = r.smembers(redis_login)
+    res_id = -1
+    checking = False
+    if res != {}:
+        for elem in res:
+            if 'id' in elem:
+                res_id = int(elem[2:])
+            elif password == elem:
+                checking = True
+    if checking:
+        return res_id
     query = """
                 SELECT id, hash_password
                 FROM suppliers 
@@ -79,5 +117,8 @@ def get_supplier_id(login, password):
             if result == []:
                 return None
             if result[0]["hash_password"] == password:
+                r.sadd(redis_login, password)
+                r.sadd(redis_login, 'id' + str(result[0]["id"]))
+                r.expire(redis_login, REDIS_TTL)
                 return result[0]["id"]
             return None
