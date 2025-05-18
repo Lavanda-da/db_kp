@@ -14,6 +14,10 @@ r = redis.StrictRedis(
 )
 
 
+def publish_event(event_type, message):
+    r.publish(event_type, message)
+
+
 def check_user(login) -> list[dict]:
     query = """
                 SELECT id 
@@ -72,6 +76,7 @@ def get_user_id(login, password):
             elif password == elem:
                 checking = True
     if checking:
+        publish_event('created_order', f"Создан заказ пользователем {res_id}")
         return res_id
     query = """
                 SELECT id, hash_password
@@ -85,10 +90,12 @@ def get_user_id(login, password):
             if result == []:
                 return None
             if result[0]["hash_password"] == password:
+                user_id = result[0]["id"]
                 r.sadd(redis_login, password)
-                r.sadd(redis_login, 'id' + str(result[0]["id"]))
+                r.sadd(redis_login, 'id' + str(user_id))
                 r.expire(redis_login, REDIS_TTL)
-                return result[0]["id"]
+                publish_event('created_order', f"Создан заказ пользователем {user_id}")
+                return user_id
             return None
 
 
@@ -104,6 +111,7 @@ def get_supplier_id(login, password):
             elif password == elem:
                 checking = True
     if checking:
+        publish_event('created_order', f"Создана поставка поставщиком {res_id}")
         return res_id
     query = """
                 SELECT id, hash_password
@@ -117,8 +125,10 @@ def get_supplier_id(login, password):
             if result == []:
                 return None
             if result[0]["hash_password"] == password:
+                supplier_id = result[0]["id"]
                 r.sadd(redis_login, password)
-                r.sadd(redis_login, 'id' + str(result[0]["id"]))
+                r.sadd(redis_login, 'id' + str(supplier_id))
                 r.expire(redis_login, REDIS_TTL)
-                return result[0]["id"]
+                publish_event('created_order', f"Создана поставка поставщиком {supplier_id}")
+                return supplier_id
             return None
